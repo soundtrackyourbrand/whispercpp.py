@@ -28,7 +28,7 @@ MODELS = {
 }
 
 def model_exists(model):
-    return os.path.exists(Path(MODELS_DIR).joinpath(model))
+    return os.path.exists(os.path.join(os.path.dirname(MODELS_DIR),model))
 
 def download_model(model):
     if model_exists(model):
