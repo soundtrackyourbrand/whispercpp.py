@@ -27,10 +27,10 @@ MODELS = {
     'ggml-large.bin': 'https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-large.bin',
 }
 
-def model_exists(model):
-    return os.path.exists(Path(MODELS_DIR).joinpath(model.decode("utf-8")))
+def model_exists(model: str):
+    return os.path.exists(Path(MODELS_DIR).joinpath(model))
 
-def download_model(model):
+def download_model(model: str):
     if model_exists(model):
         return
 
@@ -85,7 +85,7 @@ cdef class Whisper:
     cdef whisper_full_params params
 
     def __init__(self, model=DEFAULT_MODEL, pb=None):
-        model_fullname = f'ggml-{model}.bin'.encode('utf8')
+        model_fullname = f'ggml-{model}.bin'
         download_model(model_fullname)
         model_path = Path(MODELS_DIR).joinpath(model_fullname)
         cdef bytes model_b = str(model_path).encode('utf8')
