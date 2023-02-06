@@ -16,7 +16,7 @@ cimport numpy as cnp
 cdef int SAMPLE_RATE = 16000
 cdef char* TEST_FILE = 'test.wav'
 cdef char* DEFAULT_MODEL = 'tiny'
-cdef char* LANGUAGE = b'fr'
+cdef char* LANGUAGE = b'auto'
 cdef int N_THREADS = os.cpu_count()
 
 MODELS = {
@@ -72,44 +72,119 @@ cdef whisper_full_params default_params() nogil:
     cdef whisper_full_params params = whisper_full_default_params(
         whisper_sampling_strategy.WHISPER_SAMPLING_GREEDY
     )
-    params.print_realtime = True
-    params.print_progress = True
+    params.print_realtime = False
+    params.print_progress = False
     params.translate = False
-    params.language = <const char *> LANGUAGE
+    params.language = <const char *> p["language"]
+    params.token_timestamps = p["token_timestamps"]
+    params.print_timestamps = p["print_timestamps"]
     n_threads = N_THREADS
     return params
+
+cdef whisper_full_params custom_params(dict p) nogil:
+    cdef whisper_full_params params = whisper_full_default_params(
+        whisper_sampling_strategy.WHISPER_SAMPLING_GREEDY
+    )
+    params.print_realtime = p["print_realtime"]
+    params.print_progress = p["print_progress"]
+    params.translate = p["translate"]
+    params.language = <const char *> LANGUAGE
+    params.token_timestamps = True
+    params.print_timestamps = True
+    n_threads = N_THREADS
+    return params
+
 
 
 cdef class Whisper:
     cdef whisper_context * ctx
     cdef whisper_full_params params
 
-    def __init__(self, model=DEFAULT_MODEL, pb=None):
+    def __init__(self, model=DEFAULT_MODEL, parameters=None):
         model_fullname = f'ggml-{model}.bin'
         download_model(model_fullname)
         model_path = Path(MODELS_DIR).joinpath(model_fullname)
+        if parameters is None:
+            self.params = default_params()
+        else:
+            self.params = custom_params(p=parameters)
         cdef bytes model_b = str(model_path).encode('utf8')
-        self.ctx = whisper_init(model_b)
-        self.params = default_params()
+        self.ctx = whisper_init_from_file(model_b)
         whisper_print_system_info()
 
     def __dealloc__(self):
         whisper_free(self.ctx)
 
-    def transcribe(self, filename=TEST_FILE):
-        print("Loading data..")
+    def full_transcribe(self, filename=TEST_FILE):
         cdef cnp.ndarray[cnp.float32_t, ndim=1, mode="c"] frames = load_audio(<bytes>filename)
+        cdef int res = whisper_full(self.ctx, self.params, &frames[0], len(frames))
+        return res
 
-        print("Transcribing..")
-        return whisper_full(self.ctx, self.params, &frames[0], len(frames))
-    
-    def extract_text(self, int res):
-        print("Extracting text...")
-        if res != 0:
-            raise RuntimeError
-        cdef int n_segments = whisper_full_n_segments(self.ctx)
-        return [
-            whisper_full_get_segment_text(self.ctx, i).decode() for i in range(n_segments)
-        ]
+    def whisper_full_get_segment_text(self, int i_segment):
+        return whisper_full_get_segment_text(self.ctx, i_segment).decode("utf-8")
+
+    def whisper_full_get_segment_t0(self, int i_segment):
+        return whisper_full_get_segment_t0(self.ctx, i_segment)
+
+    def whisper_full_get_segment_t1(self, int i_segment):
+        return whisper_full_get_segment_t1(self.ctx, i_segment)
+
+    def whisper_token_to_str(self, int token):
+        return whisper_token_to_str(self.ctx, token).decode("utf-8")
+
+    def whisper_token_sot(self):
+        yield whisper_token_sot(self.ctx)
+
+    def whisper_token_eot(self):
+        yield whisper_token_eot(self.ctx)
+
+    def whisper_token_prev(self):
+        yield whisper_token_prev(self.ctx)
+
+    def whisper_token_solm(self):
+        yield whisper_token_solm(self.ctx)
+
+    def whisper_token_not(self):
+        yield whisper_token_not(self.ctx)
+
+    def whisper_token_beg(self):
+        yield whisper_token_beg(self.ctx)
+
+    def whisper_token_beg(self):
+        yield whisper_token_beg(self.ctx)
+
+    def whisper_full_n_tokens(self, int i_segment):
+        return whisper_full_n_tokens(self.ctx, i_segment)
+
+    def whisper_full_get_token_id(self, int i_segment, int i_token):
+        return whisper_full_get_token_id(self.ctx, i_segment, i_token)
+
+    def whisper_full_get_token_data(self, int i_segment, int i_token):
+        return whisper_full_get_token_data(self.ctx, i_segment, i_token)
+
+    def whisper_full_n_segments(self):
+        return whisper_full_n_segments(self.ctx)
+
+    def whisper_full_get_token_text(self, int i_segment, int i_token):
+        return whisper_full_get_token_text(self.ctx, i_segment, i_token).decode("utf-8")
+
+    def whisper_full_lang_id(self):
+        return whisper_full_lang_id(self.ctx)
+
+    def whisper_lang_str(self, int id):
+        return whisper_lang_str(id).decode("utf-8")
+
+    def get_language_string(self):
+        l_id = whisper_full_lang_id(self.ctx)
+        return whisper_lang_str(l_id).decode("utf-8")
+
+    def get_segment_timestamp(self, int i_segment):
+        t0 = int(whisper_full_get_segment_t0(self.ctx, i_segment))
+        t1 = int(whisper_full_get_segment_t1(self.ctx, i_segment))
+        return (t0, t1)
+
+    def whisper_is_multilingual(self) -> bool:
+        return bool(whisper_is_multilingual(self.ctx))
+
 
 

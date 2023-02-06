@@ -71,7 +71,7 @@ cdef extern from "whisper.h" nogil:
         whisper_encoder_begin_callback encoder_begin_callback
         void* encoder_begin_callback_user_data
     whisper_full_params whisper_full_default_params(whisper_sampling_strategy)
-    cdef whisper_context* whisper_init(char*)
+    cdef whisper_context* whisper_init_from_file(char*)
     cdef void whisper_free(whisper_context*)
     cdef int whisper_pcm_to_mel(whisper_context*, float*, int, int)
     cdef int whisper_set_mel(whisper_context*, float*, int, int)
@@ -110,4 +110,8 @@ cdef extern from "whisper.h" nogil:
     cdef float whisper_full_get_token_p(whisper_context*, int, int)
     const char* whisper_print_system_info()
     const char* whisper_full_get_segment_text(whisper_context*, int)
-
+    const char * whisper_full_get_token_text(whisper_context*, int, int)
+    cdef int whisper_full_lang_id(whisper_context*)
+    const char * whisper_lang_str(int id)
+    cdef int whisper_is_multilingual(whisper_context*)
+    const char * whisper_token_to_str(whisper_context*, whisper_token)
