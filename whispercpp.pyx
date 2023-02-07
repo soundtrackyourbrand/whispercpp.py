@@ -81,7 +81,7 @@ cdef whisper_full_params default_params() nogil:
     n_threads = N_THREADS
     return params
 
-cdef whisper_full_params custom_params(dict p) nogil:
+cdef whisper_full_params custom_params(dict p):
     cdef whisper_full_params params = whisper_full_default_params(
         whisper_sampling_strategy.WHISPER_SAMPLING_GREEDY
     )
