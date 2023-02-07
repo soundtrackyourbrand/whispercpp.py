@@ -27,19 +27,21 @@ MODELS = {
     'ggml-large.bin': 'https://huggingface.co/datasets/ggerganov/whisper.cpp/resolve/main/ggml-large.bin',
 }
 
-def model_exists(model: str):
-    return os.path.exists(Path(MODELS_DIR).joinpath(model))
+def model_exists(model_path) -> bool:
+    return os.path.exists(model_path)
 
-def download_model(model: str):
-    if model_exists(model):
-        return
-
-    print(f'Downloading {model}...')
-    url = MODELS[model]
-    r = requests.get(url, allow_redirects=True)
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    with open(Path(MODELS_DIR).joinpath(model), 'wb') as f:
-        f.write(r.content)
+def download_model(model_folder_path: str, model: str) -> str:
+    if model_folder_path is None:
+        model_folder_path = MODELS_DIR
+    model_path = str(Path(model_folder_path).joinpath(model))
+    if not model_exists(model_path):
+        print(f'Downloading {model}...')
+        url = MODELS[model]
+        r = requests.get(url, allow_redirects=True)
+        os.makedirs(model_folder_path, exist_ok=True)
+        with open(Path(model_folder_path).joinpath(model), 'wb') as f:
+            f.write(r.content)
+    return model_path
 
 
 cdef cnp.ndarray[cnp.float32_t, ndim=1, mode="c"] load_audio(bytes file, int sr = SAMPLE_RATE):
@@ -96,15 +98,24 @@ cdef whisper_full_params custom_params(dict p) nogil:
     n_threads = N_THREADS
     return params
 
+def prepare_parameters(parameters=None):
+    if parameters:
+        if "language" in parameters:
+            language = parameters["language"]
+            if type(language) == str:
+                language = language.encode("utf-8")
+            parameters["language"] = language
+    return parameters
+
 
 cdef class Whisper:
     cdef whisper_context * ctx
     cdef whisper_full_params params
 
-    def __init__(self, model=DEFAULT_MODEL, parameters=None):
+    def __init__(self, model=DEFAULT_MODEL, parameters=None, model_folder_path=None):
+        parameters = prepare_parameters(parameters=parameters)
         model_fullname = f'ggml-{model}.bin'
-        download_model(model_fullname)
-        model_path = Path(MODELS_DIR).joinpath(model_fullname)
+        model_path = download_model(model_folder_path=model_folder_path, model=model_fullname)
         if parameters is None:
             self.params = default_params()
         else:
