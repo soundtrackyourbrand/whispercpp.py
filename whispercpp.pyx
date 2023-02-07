@@ -75,25 +75,26 @@ cdef whisper_full_params default_params() nogil:
     params.print_realtime = False
     params.print_progress = False
     params.translate = False
-    params.language = <const char *> p["language"]
-    params.token_timestamps = p["token_timestamps"]
-    params.print_timestamps = p["print_timestamps"]
-    n_threads = N_THREADS
-    return params
-
-cdef whisper_full_params custom_params(dict p):
-    cdef whisper_full_params params = whisper_full_default_params(
-        whisper_sampling_strategy.WHISPER_SAMPLING_GREEDY
-    )
-    params.print_realtime = p["print_realtime"]
-    params.print_progress = p["print_progress"]
-    params.translate = p["translate"]
     params.language = <const char *> LANGUAGE
     params.token_timestamps = True
     params.print_timestamps = True
     n_threads = N_THREADS
     return params
 
+
+cdef whisper_full_params custom_params(dict p) nogil:
+    cdef whisper_full_params params = whisper_full_default_params(
+        whisper_sampling_strategy.WHISPER_SAMPLING_GREEDY
+    )
+    with gil:
+        params.print_realtime = <const bint> p["print_realtime"]
+        params.print_progress = <const bint> p["print_progress"]
+        params.translate = <const bint> p["translate"]
+        params.language = <const char *> p["language"]
+        params.token_timestamps = <const bint> p["token_timestamps"]
+        params.print_timestamps = <const bint>  p["print_timestamps"]
+    n_threads = N_THREADS
+    return params
 
 
 cdef class Whisper:
@@ -110,9 +111,11 @@ cdef class Whisper:
             self.params = custom_params(p=parameters)
         cdef bytes model_b = str(model_path).encode('utf8')
         self.ctx = whisper_init_from_file(model_b)
-        whisper_print_system_info()
 
     def __dealloc__(self):
+        whisper_free(self.ctx)
+
+    def free_memory(self):
         whisper_free(self.ctx)
 
     def full_transcribe(self, filename=TEST_FILE):
@@ -183,8 +186,8 @@ cdef class Whisper:
         t1 = int(whisper_full_get_segment_t1(self.ctx, i_segment))
         return (t0, t1)
 
-    def whisper_is_multilingual(self) -> bool:
-        return bool(whisper_is_multilingual(self.ctx))
+    def whisper_is_multilingual(self):
+        return whisper_is_multilingual(self.ctx)
 
 
 
